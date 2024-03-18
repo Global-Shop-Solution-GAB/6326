@@ -1,0 +1,81 @@
+Program.Sub.Preflight.Start
+v.Global.sError.Declare(String)
+Program.Sub.Preflight.End
+
+'hook: 16860 
+'post comment before closing the PO
+
+Program.Sub.Main.Start
+
+
+f.Intrinsic.Control.Try
+	v.Local.sSQL.Declare(String)
+	
+	'get all records to DT
+	f.Intrinsic.String.Build("select PO_NUM, PO_LINE LINE, COMMENT TEXT from GCG_6326_VND_COMMENT where CURRENT_USER='{0}' and COMMENT<>''", v.Caller.User, v.Local.sSQL)
+	
+	f.Intrinsic.Control.If(v.DataTable.dtRef.Exists)
+		f.Data.DataTable.Close("dtRef")
+	f.Intrinsic.Control.EndIf
+	
+	f.ODBC.Connection!Con.OpenCompanyConnection
+		f.Data.DataTable.CreateFromSQL("dtRef", "Con", v.Local.sSQL)
+	
+	f.Intrinsic.Control.If(v.DataTable.dtRef.RowCount,>,0)
+		'save DT to DB
+		f.Data.DataTable.SaveToDB("dtRef", "Con", "PO_LN_TEXT", "PO_NUM", 256)
+		
+		'delete 
+		f.Intrinsic.String.Build("delete GCG_6326_VND_COMMENT where CURRENT_USER='{0}'", v.Caller.User, v.Local.sSQL)
+		f.ODBC.Connection!Con.Execute(v.Local.sSQL)
+		
+	f.Intrinsic.Control.EndIf
+	
+	f.Data.DataTable.Close("dtRef")
+	f.ODBC.Connection!Con.Close
+	
+f.Intrinsic.Control.Catch
+	f.Intrinsic.Control.CallSub(Catching)
+f.Intrinsic.Control.EndTry
+
+Program.Sub.Main.End
+
+'write to log
+'arg: argMsg
+Program.Sub.WriteLog.Start
+v.Local.sFileName.Declare(String)
+v.Local.isFileExists.Declare(Boolean)
+v.Local.isDirExists.Declare(Boolean)
+
+	'Add time stamp to file name
+	f.Intrinsic.String.Build("{0}\{1}\{2}", v.Caller.GlobalDir, "CUSTOM", "6326",v.Local.sFileName)
+	
+	f.Intrinsic.File.DirExists(v.Local.sFileName, v.Local.isDirExists)
+	
+	f.Intrinsic.Control.If(v.Local.isDirExists,=,False)
+		f.Intrinsic.File.CreateDir(v.Local.sFileName)
+	f.Intrinsic.Control.EndIf
+	
+	f.Intrinsic.String.Build("{0}\{1}{2}", v.Local.sFileName, "PO Close  ",v.Ambient.Now.FormatYYYYMMDD,v.Local.sFileName)
+	f.Intrinsic.String.Build("{0}{1}",v.Local.sFileName,".txt",v.Local.sFileName)
+	
+	'check file exist
+	f.Intrinsic.File.Exists(v.Local.sFileName, v.Local.isFileExists)
+	
+	f.Intrinsic.Control.If(v.Local.isFileExists,=,False)
+		f.Intrinsic.File.String2File(v.Local.sFileName, "Start Log")
+		f.Intrinsic.File.Append2File(v.Local.sFileName, v.Ambient.NewLine)
+		f.Intrinsic.File.Append2File(v.Local.sFileName, "********************")
+		f.Intrinsic.File.Append2File(v.Local.sFileName, v.Ambient.NewLine)
+		
+	f.Intrinsic.Control.EndIf
+	
+	'append
+	f.Intrinsic.File.Append2File(v.Local.sFileName, v.Args.argMsg)
+
+Program.Sub.WriteLog.End
+
+Program.Sub.Catching.Start
+F.Intrinsic.String.Build("{3}{3}- {4}:{3}Sub: {0}{3}Error No: {1}{3}Description: {2}{3}", v.Ambient.CurrentSubroutine, v.Ambient.ErrorNumber, v.Ambient.ErrorDescription, v.Ambient.NewLine, v.Ambient.Now.FormatYYYYMMDD-HHNNSS, v.Global.sError)
+	F.Intrinsic.Control.CallSub(WriteLog, "argMsg", v.Global.sError)
+Program.Sub.Catching.End

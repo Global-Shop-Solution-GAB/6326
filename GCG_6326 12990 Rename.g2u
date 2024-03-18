@@ -1,0 +1,70 @@
+Program.Sub.Preflight.Start
+v.Global.sError.Declare(String)
+Program.Sub.Preflight.End
+
+'GCG_6326
+'hook: 12990 POPULATE VENDOR QUOTE 
+'if it VENDOR QUOTE PRICE SELECT screen, enable script button 1
+'rename button 'Copy Commt'
+
+'	April 2021, Nam Le
+
+Program.Sub.Main.Start
+
+f.Intrinsic.Control.Try
+
+'find correct version of the script
+f.Intrinsic.Control.If(v.Passed.000001,=,"PUR021GI-120720.0752")
+	v.Passed.000201.Set("Copy Commt")
+f.Intrinsic.Variable.SetProperty("000201", "BC", 200)
+
+	f.Intrinsic.UI.ChangeCallerProperty(v.Passed.000201, "LOCK", 0)
+F.Intrinsic.Control.Else
+	f.Intrinsic.UI.ChangeCallerProperty(v.Passed.000201, "LOCK", 1)
+f.Intrinsic.Control.EndIf
+
+f.Intrinsic.Control.Catch
+	f.Intrinsic.Control.CallSub(Catching)
+f.Intrinsic.Control.EndTry
+
+Program.Sub.Main.End
+
+'write to log
+'arg: argMsg
+Program.Sub.WriteLog.Start
+v.Local.sFileName.Declare(String)
+v.Local.isFileExists.Declare(Boolean)
+v.Local.isDirExists.Declare(Boolean)
+
+	'Add time stamp to file name
+	f.Intrinsic.String.Build("{0}\{1}\{2}", v.Caller.GlobalDir, "CUSTOM", "6326",v.Local.sFileName)
+	
+	f.Intrinsic.File.DirExists(v.Local.sFileName, v.Local.isDirExists)
+	
+	f.Intrinsic.Control.If(v.Local.isDirExists,=,False)
+		f.Intrinsic.File.CreateDir(v.Local.sFileName)
+	f.Intrinsic.Control.EndIf
+	
+	f.Intrinsic.String.Build("{0}\{1}{2}", v.Local.sFileName, "Rename Control  ",v.Ambient.Now.FormatYYYYMMDD,v.Local.sFileName)
+	f.Intrinsic.String.Build("{0}{1}",v.Local.sFileName,".txt",v.Local.sFileName)
+	
+	'check file exist
+	f.Intrinsic.File.Exists(v.Local.sFileName, v.Local.isFileExists)
+	
+	f.Intrinsic.Control.If(v.Local.isFileExists,=,False)
+		f.Intrinsic.File.String2File(v.Local.sFileName, "Start Log")
+		f.Intrinsic.File.Append2File(v.Local.sFileName, v.Ambient.NewLine)
+		f.Intrinsic.File.Append2File(v.Local.sFileName, "********************")
+		f.Intrinsic.File.Append2File(v.Local.sFileName, v.Ambient.NewLine)
+		
+	f.Intrinsic.Control.EndIf
+	
+	'append
+	f.Intrinsic.File.Append2File(v.Local.sFileName, v.Args.argMsg)
+
+Program.Sub.WriteLog.End
+
+Program.Sub.Catching.Start
+F.Intrinsic.String.Build("{3}{3}- {4}:{3}Sub: {0}{3}Error No: {1}{3}Description: {2}{3}", v.Ambient.CurrentSubroutine, v.Ambient.ErrorNumber, v.Ambient.ErrorDescription, v.Ambient.NewLine, v.Ambient.Now.FormatYYYYMMDD-HHNNSS, v.Global.sError)
+	F.Intrinsic.Control.CallSub(WriteLog, "argMsg", v.Global.sError)
+Program.Sub.Catching.End
